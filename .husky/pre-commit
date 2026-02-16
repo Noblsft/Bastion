@@ -1,6 +1,7 @@
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
 
+
 echo "Running tests..."
 pnpm exec jest --silent --passWithNoTests
 TEST_STATUS=$?
