@@ -28,7 +28,7 @@ export function Topbar() {
       zIndex={50}
       width='100%'
     >
-      <Box mx={1} px={4} height='35px'>
+      <Box mx={1} px={2} height='35px'>
         <Flex align='center' height='100%'>
           <HStack gap={2} align='center'>
             <Box
