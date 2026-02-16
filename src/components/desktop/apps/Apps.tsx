@@ -16,7 +16,7 @@ export function Apps() {
       <Dialog.Root size='cover'>
         <HStack gap={4}>
           <Dialog.Trigger>
-            <IconButton aria-label='add app' variant='surface' size='md'>
+            <IconButton aria-label='Open application library' variant='surface' size='md'>
               <FaPlus />
             </IconButton>
           </Dialog.Trigger>
