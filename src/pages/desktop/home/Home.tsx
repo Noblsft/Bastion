@@ -26,7 +26,7 @@ export default function Home() {
             height='100%'
           >
             <Splitter.Panel id='sidebar'>
-              <Sidebar />
+              <Sidebar app={app} />
             </Splitter.Panel>
             <Splitter.ResizeTrigger id='sidebar:workspace'>
               <Splitter.ResizeTriggerSeparator display='none' />
