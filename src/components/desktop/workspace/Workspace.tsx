@@ -1,10 +1,12 @@
 import './workspace.css';
 import { Box } from '@chakra-ui/react';
 
-export function Workspace() {
+import type { App } from '@/apps/types';
+
+export function Workspace({ app }: { app: App }) {
   return (
     <Box className='workspace' bg='bg.emphasized' p={1}>
-      Workspace
+      <app.Workspace />
     </Box>
   );
 }
