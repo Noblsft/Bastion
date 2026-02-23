@@ -3,7 +3,7 @@ import './home.css';
 import { useState } from 'react';
 
 import { appRegistry } from '@/apps';
-import { Apps, Sidebar, Workspace } from '@/components';
+import { AppsBar, Sidebar, Workspace } from '@/components';
 
 type AppNames = keyof typeof appRegistry;
 
@@ -15,7 +15,7 @@ export default function Home() {
   return (
     <app.Provider>
       <Box height='100%'>
-        <Apps />
+        <AppsBar />
         <Box className='home' bg='bg.panel' p={2} borderWidth='1px'>
           <Splitter.Root
             panels={[

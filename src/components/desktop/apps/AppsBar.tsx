@@ -1,13 +1,13 @@
 import { Box, HStack, Separator, Dialog, Portal, CloseButton, Button } from '@chakra-ui/react';
 import { FaPlus } from 'react-icons/fa6';
 
-export function Apps() {
+export function AppsBar() {
   return (
     <Box mx='10px' my='2px'>
       <Dialog.Root size='cover'>
         <HStack gap={4}>
           <Dialog.Trigger asChild>
-            <Button aria-label='Open application library' variant='surface' size='md'>
+            <Button aria-label='Open application library' variant='outline' size='md'>
               <FaPlus />
             </Button>
           </Dialog.Trigger>

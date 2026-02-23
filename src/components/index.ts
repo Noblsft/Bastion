@@ -2,7 +2,7 @@
 export * from '@/components/desktop/topbar/Topbar';
 export * from '@/components/desktop/sidebar/Sidebar';
 export * from '@/components/desktop/workspace/Workspace';
-export * from '@/components/desktop/apps/Apps';
+export * from '@/components/desktop/apps/AppsBar.tsx';
 
 // shared components
 export * from '@/components/ui/provider';

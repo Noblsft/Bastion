@@ -1,4 +1,5 @@
 import './App.css';
+import { Box } from '@chakra-ui/react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 
 import { Topbar, Provider } from '@/components';
@@ -7,7 +8,7 @@ import { Start, Home } from '@/pages';
 function App() {
   return (
     <Provider>
-      <main className='window-shell'>
+      <Box className='window-shell' bg='bg.canvas' colorPalette='brand'>
         <Topbar />
         <HashRouter>
           <Routes>
@@ -15,7 +16,7 @@ function App() {
             <Route path='/home' element={<Home />} />
           </Routes>
         </HashRouter>
-      </main>
+      </Box>
     </Provider>
   );
 }
