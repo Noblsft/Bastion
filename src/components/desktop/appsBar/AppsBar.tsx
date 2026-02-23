@@ -1,17 +1,17 @@
-import { Box, HStack, Separator, Dialog, Portal, CloseButton, Button } from '@chakra-ui/react';
+import { Box, VStack, Dialog, Portal, CloseButton, Button } from '@chakra-ui/react';
 import { FaPlus } from 'react-icons/fa6';
 
 export function AppsBar() {
   return (
-    <Box mx='10px' my='2px'>
+    <Box mx='10px' my='2px' width='50px'>
       <Dialog.Root size='cover'>
-        <HStack gap={4}>
+        <VStack gap={4}>
           <Dialog.Trigger asChild>
             <Button aria-label='Open application library' variant='outline' size='md'>
               <FaPlus />
             </Button>
           </Dialog.Trigger>
-          <Separator orientation='vertical' height='8' />
+          {/* <Separator orientation='vertical' height='8' /> */}
           <Portal>
             <Dialog.Backdrop />
             <Dialog.Positioner>
@@ -37,7 +37,7 @@ export function AppsBar() {
               </Dialog.Content>
             </Dialog.Positioner>
           </Portal>
-        </HStack>
+        </VStack>
       </Dialog.Root>
     </Box>
   );
