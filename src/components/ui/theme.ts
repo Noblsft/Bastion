@@ -26,7 +26,6 @@ const config = defineConfig({
     },
     semanticTokens: {
       colors: {
-        // Override bg.panel used by Card, Dialog, Popover, etc.
         bg: {
           panel: {
             value: { base: '{colors.white}', _dark: '{colors.brand.900}' },

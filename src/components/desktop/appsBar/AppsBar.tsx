@@ -3,19 +3,18 @@ import { FaPlus } from 'react-icons/fa6';
 
 export function AppsBar() {
   return (
-    <Box mx='10px' my='2px' width='50px'>
-      <Dialog.Root size='cover'>
-        <VStack gap={4}>
+    <Box p={1} w='60px' alignSelf='flex-start'>
+      <VStack gap={2} alignItems='center'>
+        <Dialog.Root size='cover'>
           <Dialog.Trigger asChild>
-            <Button aria-label='Open application library' variant='outline' size='md'>
+            <Button aria-label='Open application library' variant='outline' size='sm'>
               <FaPlus />
             </Button>
           </Dialog.Trigger>
-          {/* <Separator orientation='vertical' height='8' /> */}
           <Portal>
-            <Dialog.Backdrop />
+            <Dialog.Backdrop borderRadius='14px' overflow='hidden' />
             <Dialog.Positioner>
-              <Dialog.Content>
+              <Dialog.Content borderRadius='md'>
                 <Dialog.Header>
                   <Dialog.Title>Application library</Dialog.Title>
                 </Dialog.Header>
@@ -37,8 +36,8 @@ export function AppsBar() {
               </Dialog.Content>
             </Dialog.Positioner>
           </Portal>
-        </VStack>
-      </Dialog.Root>
+        </Dialog.Root>
+      </VStack>
     </Box>
   );
 }

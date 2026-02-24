@@ -27,6 +27,7 @@ export function Topbar() {
       top={0}
       zIndex={50}
       width='100%'
+      borderBottom={`1px solid ${borderColor}`}
     >
       <Box mx={1} px={2} height='35px'>
         <Flex align='center' height='100%'>

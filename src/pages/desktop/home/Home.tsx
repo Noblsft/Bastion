@@ -1,5 +1,4 @@
 import { Box, HStack, Splitter } from '@chakra-ui/react';
-import './home.css';
 import { useState } from 'react';
 
 import { appRegistry } from '@/apps';
@@ -15,9 +14,9 @@ export default function Home() {
   return (
     <app.Provider>
       <Box height='100%'>
-        <HStack>
+        <HStack gap={0}>
           <AppsBar />
-          <Box className='home' p={2} borderWidth='1px' flex='1'>
+          <Box flex='1'>
             <Splitter.Root
               panels={[
                 { id: 'sidebar', collapsible: true, collapsedSize: 0, minSize: 10 },
