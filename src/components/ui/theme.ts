@@ -20,6 +20,7 @@ const config = defineConfig({
       spacing: {
         1: { value: '0.25rem' },
         2: { value: '0.5rem' },
+        3: { value: '0.75rem' },
         4: { value: '1rem' },
         8: { value: '2rem' },
       },
@@ -33,6 +34,9 @@ const config = defineConfig({
           canvas: {
             value: { base: '{colors.gray.50}', _dark: '{colors.gray.950}' },
           },
+        },
+        border: {
+          value: { base: '{colors.gray.300}', _dark: '{colors.gray.700}' },
         },
         brand: {
           solid: { value: '{colors.brand.500}' }, // button bg

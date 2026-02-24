@@ -1,9 +1,12 @@
-import { Box, Flex, HStack } from '@chakra-ui/react';
+import { Box, Flex, HStack, Input } from '@chakra-ui/react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useState } from 'react';
 
 import { useColorModeValue } from '@/components';
 
 export function Topbar() {
+  // TODO: make search bar visible when not on start screen
+  const [isStartScreen] = useState(false);
   const borderColor = useColorModeValue('rgba(0,0,0,0.06)', 'rgba(255,255,255,0.04)');
   const appWindow = getCurrentWindow();
 
@@ -27,18 +30,19 @@ export function Topbar() {
       top={0}
       zIndex={50}
       width='100%'
-      borderBottom={`1px solid ${borderColor}`}
+      borderBottom='1px solid'
+      borderColor='border'
     >
-      <Box mx={1} px={2} height='35px'>
-        <Flex align='center' height='100%'>
-          <HStack gap={2} align='center'>
+      <Box mx={1} px={2} height='5vh'>
+        <Flex justify='space-between' align='center' height='100%' gap={4}>
+          <HStack gap={2} align='center' flex='0 0 auto'>
             <Box
               as='button'
               onClick={() => appWindow.close()}
               aria-label='Close'
-              width='12px'
-              height='12px'
-              minW='12px'
+              width={3}
+              height={3}
+              minW={3}
               p={0}
               borderRadius='full'
               bg='#ff605c'
@@ -52,9 +56,9 @@ export function Topbar() {
               as='button'
               onClick={() => appWindow.minimize()}
               aria-label='Minimize'
-              width='12px'
-              height='12px'
-              minW='12px'
+              width={3}
+              height={3}
+              minW={3}
               p={0}
               borderRadius='full'
               bg='#ffbf2e'
@@ -68,9 +72,9 @@ export function Topbar() {
               as='button'
               onClick={() => appWindow.toggleMaximize()}
               aria-label='Maximize'
-              width='12px'
-              height='12px'
-              minW='12px'
+              width={3}
+              height={3}
+              minW={3}
               p={0}
               borderRadius='full'
               bg='#2fd55a'
@@ -80,6 +84,14 @@ export function Topbar() {
               _focus={{ boxShadow: 'outline' }}
             />
           </HStack>
+          <Input
+            hidden={isStartScreen}
+            placeholder='Search your files...'
+            h='3vh'
+            flex='1'
+            maxW='40vw'
+          />
+          <Box flex='0 0 auto' />
         </Flex>
       </Box>
     </Box>
