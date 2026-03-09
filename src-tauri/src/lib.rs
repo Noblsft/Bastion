@@ -1,4 +1,3 @@
-mod helpers;
 mod state;
 mod vault;
 
@@ -13,18 +12,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let app_version = app.package_info().version.to_string();
-
-            let workspaces_root = app
-                .path()
-                .app_data_dir()
-                .expect("app_data_dir")
-                .join("vault-workspaces");
-
             app.manage(AppState {
-                vault: VaultService::new(app_version, 1, workspaces_root),
+                vault: VaultService::new(1),
             });
-
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -36,9 +26,20 @@ pub fn run() {
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
+            // Lifecycle
             vault::commands::create_vault,
-            vault::commands::load_vault,
+            vault::commands::open_vault,
             vault::commands::close_vault,
+            // Files
+            vault::commands::vault_create_file,
+            vault::commands::vault_read_file,
+            vault::commands::vault_update_file,
+            vault::commands::vault_delete_file,
+            vault::commands::vault_list_files,
+            vault::commands::vault_search_files,
+            // Settings
+            vault::commands::vault_get_settings,
+            vault::commands::vault_set_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

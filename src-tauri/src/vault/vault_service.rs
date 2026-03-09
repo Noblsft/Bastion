@@ -1,156 +1,339 @@
-use crate::helpers::zip::extract_zip;
+use crate::vault::compression::{algorithm_for, compress, decompress};
+use crate::vault::crypto::{decrypt, derive_key, encrypt, generate_salt};
 use crate::vault::errors::VaultError;
-use crate::vault::types::{Manifest, VaultHandle};
+use crate::vault::index::IndexStore;
+use crate::vault::search::{extract_text, SearchStore};
+use crate::vault::settings::SettingsStore;
+use crate::vault::types::{Cipher, FileEntry, Manifest, MasterKey, OpenedVault, VaultHandle};
 
-use std::fs::{self, File};
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 use std::sync::Mutex;
-
-use zip::write::FileOptions;
+use time::OffsetDateTime;
+use uuid::Uuid;
 
 pub struct VaultService {
-    app_version: String,
     schema_version: u32,
-    workspaces_root: PathBuf,
-    opened_vault: Mutex<Option<VaultHandle>>,
+    opened: Mutex<Option<OpenedVault>>,
 }
 
 impl VaultService {
-    pub fn new(app_version: String, schema_version: u32, workspaces_root: PathBuf) -> Self {
+    pub fn new(schema_version: u32) -> Self {
         Self {
-            app_version,
             schema_version,
-            workspaces_root,
-            opened_vault: Mutex::new(None),
+            opened: Mutex::new(None),
         }
     }
 
-    /// Creates an empty vault ZIP at `target`, replacing any existing file atomically.
-    pub fn create_vault(&self, target: impl AsRef<Path>) -> Result<(), VaultError> {
-        let target = target.as_ref().to_path_buf();
-        let parent = target.parent().unwrap_or_else(|| Path::new("."));
-        fs::create_dir_all(parent)?;
+    // ── Lifecycle ────────────────────────────────────────────────────────────
 
-        let tmp = temp_path_next_to(&target)?;
-        if tmp.exists() {
-            fs::remove_file(&tmp)?;
+    /// Creates a new encrypted vault directory at `path`.
+    pub fn create_vault(
+        &self,
+        path: impl AsRef<Path>,
+        passphrase: &str,
+        cipher: Cipher,
+    ) -> Result<VaultHandle, VaultError> {
+        let path = path.as_ref().to_path_buf();
+
+        if path.exists() {
+            return Err(VaultError::InvalidPath(
+                "a vault already exists at this path".into(),
+            ));
         }
 
-        let manifest = Manifest::new(&self.app_version, self.schema_version);
-        let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
+        fs::create_dir_all(&path)?;
+        fs::create_dir_all(path.join("objects"))?;
+        fs::create_dir_all(path.join("settings/apps"))?;
 
-        {
-            let f = File::create(&tmp)?;
-            let mut zip = zip::ZipWriter::new(f);
+        let salt = generate_salt();
+        let manifest = Manifest::new(self.schema_version, cipher, salt.clone());
+        fs::write(
+            path.join("manifest.json"),
+            serde_json::to_vec_pretty(&manifest)?,
+        )?;
 
-            let opts: FileOptions<'_, zip::write::ExtendedFileOptions> = FileOptions::default()
-                .compression_method(zip::CompressionMethod::Deflated)
-                .unix_permissions(0o644);
+        let raw_key = derive_key(
+            passphrase,
+            &salt,
+            manifest.kdf_memory_kb,
+            manifest.kdf_iterations,
+            manifest.kdf_parallelism,
+        )?;
 
-            zip.add_directory("user-files/", opts.clone())?;
-            zip.start_file("manifest.json", opts)?;
-            zip.write_all(&manifest_bytes)?;
-            zip.finish()?;
-        }
-
-        atomic_replace(&tmp, &target)?;
-        Ok(())
-    }
-
-    /// Extracts the vault at `vault_path` into a new workspace and stores it as the active vault.
-    pub fn load_vault(&self, vault_path: impl AsRef<Path>) -> Result<VaultHandle, VaultError> {
-        let vault_path = vault_path.as_ref();
-
-        if !vault_path.exists() {
-            return Err(VaultError::InvalidPath("vault file does not exist".into()));
-        }
-
-        fs::create_dir_all(&self.workspaces_root)?;
-
-        let workspace = self.workspaces_root.join(unique_workspace_id());
-        fs::create_dir_all(&workspace)?;
-
-        extract_zip(vault_path, &workspace)?;
-
-        let manifest = workspace.join("manifest.json");
-        if !manifest.exists() {
-            return Err(VaultError::InvalidFormat("missing manifest.json".into()));
-        }
-
-        let objects_dir = workspace.join("user-files");
-        if !objects_dir.exists() {
-            fs::create_dir_all(&objects_dir)?;
-        }
+        // Write empty index and search store so the vault is valid on first open.
+        IndexStore::save(&path, cipher, &raw_key, &[])?;
+        SearchStore::save(&path, cipher, &raw_key, &HashMap::new())?;
 
         let handle = VaultHandle {
-            source: vault_path.to_path_buf(),
-            workspace,
-            manifest,
-            objects_dir,
+            path: path.clone(),
+            cipher,
         };
 
-        *self.opened_vault.lock().unwrap_or_else(|e| e.into_inner()) = Some(handle.clone());
+        *self.opened.lock().unwrap_or_else(|e| e.into_inner()) = Some(OpenedVault {
+            path,
+            cipher,
+            key: MasterKey(raw_key),
+        });
 
         Ok(handle)
     }
 
-    /// Removes the active vault's workspace directory and clears the opened state.
-    /// Returns `Ok(())` if no vault is open (idempotent).
-    pub fn close_vault(&self) -> Result<(), VaultError> {
-        let maybe_handle = self
-            .opened_vault
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .take();
+    /// Opens an existing vault and verifies the passphrase.
+    pub fn open_vault(
+        &self,
+        path: impl AsRef<Path>,
+        passphrase: &str,
+    ) -> Result<VaultHandle, VaultError> {
+        let path = path.as_ref().to_path_buf();
 
-        let Some(handle) = maybe_handle else {
-            return Ok(());
+        if !path.exists() {
+            return Err(VaultError::InvalidPath("vault does not exist".into()));
+        }
+
+        let manifest_bytes = fs::read(path.join("manifest.json"))?;
+        let manifest: Manifest = serde_json::from_slice(&manifest_bytes)
+            .map_err(|_| VaultError::InvalidFormat("cannot parse manifest.json".into()))?;
+
+        let raw_key = derive_key(
+            passphrase,
+            &manifest.kdf_salt,
+            manifest.kdf_memory_kb,
+            manifest.kdf_iterations,
+            manifest.kdf_parallelism,
+        )?;
+
+        // Decrypting the index is the passphrase verification step.
+        // If the key is wrong the AEAD tag will not authenticate and
+        // VaultError::WrongPassphrase is returned.
+        IndexStore::load(&path, manifest.cipher, &raw_key)?;
+
+        let handle = VaultHandle {
+            path: path.clone(),
+            cipher: manifest.cipher,
         };
 
-        let ws = &handle.workspace;
+        *self.opened.lock().unwrap_or_else(|e| e.into_inner()) = Some(OpenedVault {
+            path,
+            cipher: manifest.cipher,
+            key: MasterKey(raw_key),
+        });
 
-        if !ws.starts_with(&self.workspaces_root) {
-            return Err(VaultError::InvalidPath(
-                "workspace is outside the configured workspaces root".into(),
-            ));
-        }
+        Ok(handle)
+    }
 
-        if ws.exists() {
-            fs::remove_dir_all(ws)?;
-        }
-
+    /// Closes the active vault, zeroing the master key in memory.
+    pub fn close_vault(&self) -> Result<(), VaultError> {
+        // MasterKey is ZeroizeOnDrop — key bytes are wiped when the Option is set to None.
+        *self.opened.lock().unwrap_or_else(|e| e.into_inner()) = None;
         Ok(())
     }
-}
 
-fn temp_path_next_to(path: &Path) -> Result<PathBuf, VaultError> {
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let file_name = path
-        .file_name()
-        .ok_or_else(|| VaultError::InvalidPath("missing filename".into()))?
-        .to_string_lossy();
-    Ok(parent.join(format!(".{}.tmp", file_name)))
-}
+    // ── Files ────────────────────────────────────────────────────────────────
 
-fn atomic_replace(tmp: &Path, target: &Path) -> Result<(), VaultError> {
-    if target.exists() {
-        fs::remove_file(target)?;
+    /// Stores a new file in the vault and returns its metadata entry.
+    pub fn create_file(
+        &self,
+        name: &str,
+        mime: &str,
+        app_ids: Vec<String>,
+        data: &[u8],
+    ) -> Result<FileEntry, VaultError> {
+        self.with_vault(|v| {
+            let id = Uuid::new_v4().to_string();
+
+            let compression = algorithm_for(mime);
+            let payload = match compression {
+                Some(algo) => compress(algo, data)?,
+                None => data.to_vec(),
+            };
+
+            let encrypted = encrypt(v.cipher, &v.key.0, &payload)?;
+            fs::write(
+                v.path.join("objects").join(format!("{}.enc", id)),
+                encrypted,
+            )?;
+
+            let entry = FileEntry {
+                id: id.clone(),
+                name: name.to_string(),
+                mime: mime.to_string(),
+                app_ids,
+                size: data.len() as u64,
+                integrity_hash: sha256_hex(data),
+                compression,
+                created_at: OffsetDateTime::now_utc(),
+                updated_at: OffsetDateTime::now_utc(),
+            };
+
+            let mut index = IndexStore::load(&v.path, v.cipher, &v.key.0)?;
+            index.push(entry.clone());
+            IndexStore::save(&v.path, v.cipher, &v.key.0, &index)?;
+
+            if let Some(text) = extract_text(mime, data) {
+                let mut search = SearchStore::load(&v.path, v.cipher, &v.key.0)?;
+                search.insert(id, text);
+                SearchStore::save(&v.path, v.cipher, &v.key.0, &search)?;
+            }
+
+            Ok(entry)
+        })
     }
-    fs::rename(tmp, target)?;
-    Ok(())
+
+    /// Decrypts and returns the raw bytes of a file.
+    pub fn read_file(&self, id: &str) -> Result<Vec<u8>, VaultError> {
+        self.with_vault(|v| {
+            let path = v.path.join("objects").join(format!("{}.enc", id));
+            if !path.exists() {
+                return Err(VaultError::FileNotFound(id.to_string()));
+            }
+
+            let index = IndexStore::load(&v.path, v.cipher, &v.key.0)?;
+            let entry = index
+                .iter()
+                .find(|e| e.id == id)
+                .ok_or_else(|| VaultError::FileNotFound(id.to_string()))?;
+            let compression = entry.compression;
+
+            let data = fs::read(&path)?;
+            let decrypted = decrypt(v.cipher, &v.key.0, &data)?;
+
+            match compression {
+                Some(algo) => decompress(algo, &decrypted),
+                None => Ok(decrypted),
+            }
+        })
+    }
+
+    /// Replaces the contents of an existing file and updates its metadata.
+    pub fn update_file(&self, id: &str, data: &[u8]) -> Result<FileEntry, VaultError> {
+        self.with_vault(|v| {
+            let obj_path = v.path.join("objects").join(format!("{}.enc", id));
+            if !obj_path.exists() {
+                return Err(VaultError::FileNotFound(id.to_string()));
+            }
+
+            let mut index = IndexStore::load(&v.path, v.cipher, &v.key.0)?;
+            let entry = index
+                .iter_mut()
+                .find(|e| e.id == id)
+                .ok_or_else(|| VaultError::FileNotFound(id.to_string()))?;
+
+            let compression = algorithm_for(&entry.mime);
+            let payload = match compression {
+                Some(algo) => compress(algo, data)?,
+                None => data.to_vec(),
+            };
+
+            let encrypted = encrypt(v.cipher, &v.key.0, &payload)?;
+            fs::write(&obj_path, encrypted)?;
+
+            entry.size = data.len() as u64;
+            entry.integrity_hash = sha256_hex(data);
+            entry.compression = compression;
+            entry.updated_at = OffsetDateTime::now_utc();
+            let updated = entry.clone();
+
+            IndexStore::save(&v.path, v.cipher, &v.key.0, &index)?;
+
+            let mut search = SearchStore::load(&v.path, v.cipher, &v.key.0)?;
+            match extract_text(&updated.mime, data) {
+                Some(text) => {
+                    search.insert(id.to_string(), text);
+                }
+                None => {
+                    search.remove(id);
+                }
+            }
+            SearchStore::save(&v.path, v.cipher, &v.key.0, &search)?;
+
+            Ok(updated)
+        })
+    }
+
+    /// Permanently removes a file and its search index entry.
+    pub fn delete_file(&self, id: &str) -> Result<(), VaultError> {
+        self.with_vault(|v| {
+            let obj_path = v.path.join("objects").join(format!("{}.enc", id));
+            if obj_path.exists() {
+                fs::remove_file(&obj_path)?;
+            }
+
+            let mut index = IndexStore::load(&v.path, v.cipher, &v.key.0)?;
+            index.retain(|e| e.id != id);
+            IndexStore::save(&v.path, v.cipher, &v.key.0, &index)?;
+
+            let mut search = SearchStore::load(&v.path, v.cipher, &v.key.0)?;
+            search.remove(id);
+            SearchStore::save(&v.path, v.cipher, &v.key.0, &search)?;
+
+            Ok(())
+        })
+    }
+
+    /// Returns metadata for all files in the vault.
+    pub fn list_files(&self) -> Result<Vec<FileEntry>, VaultError> {
+        self.with_vault(|v| IndexStore::load(&v.path, v.cipher, &v.key.0))
+    }
+
+    /// Returns metadata for files whose extracted text matches `query`
+    /// (case-insensitive substring match).
+    pub fn search_files(&self, query: &str) -> Result<Vec<FileEntry>, VaultError> {
+        self.with_vault(|v| {
+            let search = SearchStore::load(&v.path, v.cipher, &v.key.0)?;
+            let matching_ids = SearchStore::query(&search, query);
+            let index = IndexStore::load(&v.path, v.cipher, &v.key.0)?;
+            Ok(index
+                .into_iter()
+                .filter(|e| matching_ids.contains(&e.id))
+                .collect())
+        })
+    }
+
+    // ── Settings ─────────────────────────────────────────────────────────────
+
+    /// Reads settings for the given scope.
+    /// Use `"global"` for vault-wide settings or an app ID for per-app settings.
+    pub fn get_settings(&self, scope: &str) -> Result<Value, VaultError> {
+        self.with_vault(|v| {
+            if scope == "global" {
+                SettingsStore::load_global(&v.path, v.cipher, &v.key.0)
+            } else {
+                SettingsStore::load_app(&v.path, v.cipher, &v.key.0, scope)
+            }
+        })
+    }
+
+    /// Writes settings for the given scope, replacing the previous value.
+    pub fn set_settings(&self, scope: &str, value: Value) -> Result<(), VaultError> {
+        self.with_vault(|v| {
+            if scope == "global" {
+                SettingsStore::save_global(&v.path, v.cipher, &v.key.0, value)
+            } else {
+                SettingsStore::save_app(&v.path, v.cipher, &v.key.0, scope, value)
+            }
+        })
+    }
+
+    // ── Internal ─────────────────────────────────────────────────────────────
+
+    /// Locks the opened vault and runs `f` with a reference to it.
+    /// Returns `VaultError::NotOpen` if no vault is currently open.
+    fn with_vault<T>(
+        &self,
+        f: impl FnOnce(&OpenedVault) -> Result<T, VaultError>,
+    ) -> Result<T, VaultError> {
+        let guard = self.opened.lock().unwrap_or_else(|e| e.into_inner());
+        match guard.as_ref() {
+            Some(v) => f(v),
+            None => Err(VaultError::NotOpen),
+        }
+    }
 }
 
-fn unique_workspace_id() -> String {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let ts = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-
-    format!("vault-{}-{}", ts, n)
+fn sha256_hex(data: &[u8]) -> String {
+    hex::encode(Sha256::digest(data))
 }

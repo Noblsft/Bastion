@@ -1,4 +1,9 @@
 pub mod commands;
+pub mod compression;
+pub mod crypto;
 pub mod errors;
+pub mod index;
+pub mod search;
+pub mod settings;
 pub mod types;
 pub mod vault_service;
