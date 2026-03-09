@@ -1,6 +1,28 @@
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
 
+# ── Rust ────────────────────────────────────────────────────────────────────
+
+echo "Checking Rust formatting..."
+cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+FMT_STATUS=$?
+if [ $FMT_STATUS -ne 0 ]; then
+  echo ""
+  echo "Rust formatting check failed."
+  echo "Run 'pnpm format:rust' to fix, then re-stage the files."
+  exit $FMT_STATUS
+fi
+
+echo "Running Clippy..."
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+CLIPPY_STATUS=$?
+if [ $CLIPPY_STATUS -ne 0 ]; then
+  echo ""
+  echo "Clippy found issues. Fix them before committing."
+  exit $CLIPPY_STATUS
+fi
+
+# ── TypeScript / frontend ────────────────────────────────────────────────────
 
 echo "Running tests..."
 pnpm exec jest --silent --passWithNoTests

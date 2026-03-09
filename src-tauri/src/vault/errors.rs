@@ -16,9 +16,6 @@ pub enum VaultError {
 
     #[error("Invalid vault format: {0}")]
     InvalidFormat(String),
-
-    #[error("No vault is currently open")]
-    NoVaultOpen,
 }
 
 // Allows VaultError to be returned directly from #[tauri::command] fns.
