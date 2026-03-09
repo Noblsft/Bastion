@@ -16,4 +16,14 @@ pub enum VaultError {
 
     #[error("Invalid vault format: {0}")]
     InvalidFormat(String),
+
+    #[error("No vault is currently open")]
+    NoVaultOpen,
+}
+
+// Allows VaultError to be returned directly from #[tauri::command] fns.
+impl serde::Serialize for VaultError {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.to_string())
+    }
 }

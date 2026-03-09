@@ -1,76 +1,11 @@
 mod helpers;
+mod state;
 mod vault;
 
-use crate::vault::types::VaultHandle;
-use crate::vault::vault_service::VaultService;
+use state::AppState;
+use vault::vault_service::VaultService;
 
-use std::sync::Mutex;
-use tauri::{Manager, State, WindowEvent};
-
-struct AppState {
-    vault: VaultService,
-    // TODO: move this to vault service
-    opened_vault: Mutex<Option<VaultHandle>>,
-}
-
-fn cleanup_opened_vault(app: &tauri::AppHandle) {
-    let Some(state) = app.try_state::<AppState>() else {
-        return;
-    };
-
-    let maybe_handle = {
-        let mut guard = state
-            .opened_vault
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        guard.take()
-    };
-
-    if let Some(handle) = maybe_handle {
-        let _ = state.vault.close_vault(&handle);
-    }
-}
-
-#[tauri::command]
-fn create_vault(state: State<AppState>, path: String) -> Result<VaultHandle, String> {
-    state
-        .vault
-        .create_vault(&path)
-        .map_err(|err| err.to_string())?;
-
-    let handle = state
-        .vault
-        .load_vault(&path)
-        .map_err(|err| err.to_string())?;
-
-    let mut opened = state.opened_vault.lock().unwrap();
-    *opened = Some(handle.clone());
-
-    Ok(handle)
-}
-
-#[tauri::command]
-fn load_vault(state: State<AppState>, path: String) -> Result<VaultHandle, String> {
-    let handle = state
-        .vault
-        .load_vault(&path)
-        .map_err(|err| err.to_string())?;
-
-    let mut opened = state.opened_vault.lock().unwrap();
-    *opened = Some(handle.clone());
-
-    Ok(handle)
-}
-
-#[tauri::command]
-fn close_vault(state: State<AppState>) -> Result<(), String> {
-    state
-        .vault
-        .close_vault(state.opened_vault.lock().unwrap().as_ref().ok_or("no vault opened")?)
-        .map_err(|err| err.to_string())?;
-
-    Ok(())
-}
+use tauri::{Manager, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -80,31 +15,31 @@ pub fn run() {
         .setup(|app| {
             let app_version = app.package_info().version.to_string();
 
-            let workspace_root = app
+            let workspaces_root = app
                 .path()
                 .app_data_dir()
                 .expect("app_data_dir")
                 .join("vault-workspaces");
 
             app.manage(AppState {
-                vault: VaultService::new(app_version, 1, workspace_root),
-                opened_vault: Mutex::new(None),
+                vault: VaultService::new(app_version, 1, workspaces_root),
             });
 
             Ok(())
         })
-        .on_window_event(|window, event| {
-            match event {
-                WindowEvent::CloseRequested { .. } => {
-                    cleanup_opened_vault(&window.app_handle());
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed => {
+                if let Some(state) = window.app_handle().try_state::<AppState>() {
+                    let _ = state.vault.close_vault();
                 }
-                WindowEvent::Destroyed => {
-                    cleanup_opened_vault(&window.app_handle());
-                }
-                _ => {}
             }
+            _ => {}
         })
-        .invoke_handler(tauri::generate_handler![create_vault, load_vault, close_vault])
+        .invoke_handler(tauri::generate_handler![
+            vault::commands::create_vault,
+            vault::commands::load_vault,
+            vault::commands::close_vault,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
