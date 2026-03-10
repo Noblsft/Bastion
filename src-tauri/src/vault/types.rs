@@ -78,6 +78,90 @@ pub struct FileEntry {
     pub updated_at: OffsetDateTime,
 }
 
+// ── History ──────────────────────────────────────────────────────────────────
+
+/// Controls when a history snapshot is created automatically.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "mode")]
+pub enum TrackingMode {
+    /// Snapshot before every `update_file` / `update_file_metadata` call.
+    #[default]
+    EveryUpdate,
+    /// Snapshot only if at least `seconds` have elapsed since the last snapshot.
+    Interval { seconds: u64 },
+    /// Never snapshot automatically — the frontend must call `save_version` explicitly.
+    Manual,
+}
+
+/// Controls how many snapshots are retained per file.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "policy")]
+pub enum RetentionPolicy {
+    /// Keep every snapshot forever.
+    #[default]
+    Forever,
+    /// Keep only the most recent `max` snapshots; older ones are deleted.
+    KeepLast { max: u32 },
+}
+
+/// Vault-wide history configuration.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HistoryConfig {
+    #[serde(default)]
+    pub tracking: TrackingMode,
+    #[serde(default)]
+    pub retention: RetentionPolicy,
+}
+
+/// Describes what kind of change produced a history entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum ChangeType {
+    /// File content was replaced.
+    ContentUpdated,
+    /// Only metadata (name, mime, app_ids) changed — content unchanged.
+    MetadataUpdated,
+    /// The file was reverted to a previous version.
+    Reverted { to_version: String },
+}
+
+/// A point-in-time snapshot of a `FileEntry`'s mutable fields.
+/// Excludes `id` and `created_at` which never change.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileEntrySnapshot {
+    pub name: String,
+    pub mime: String,
+    pub app_ids: Vec<String>,
+    pub size: u64,
+    pub integrity_hash: String,
+    pub compression: Option<Compression>,
+}
+
+impl From<&FileEntry> for FileEntrySnapshot {
+    fn from(e: &FileEntry) -> Self {
+        Self {
+            name: e.name.clone(),
+            mime: e.mime.clone(),
+            app_ids: e.app_ids.clone(),
+            size: e.size,
+            integrity_hash: e.integrity_hash.clone(),
+            compression: e.compression,
+        }
+    }
+}
+
+/// A single entry in a file's change history.
+/// The `metadata` field captures the file's state **before** the change was applied,
+/// and a matching content snapshot exists at `snapshots/<file_id>/<version_id>.enc`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoryEntry {
+    pub version_id: String,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
+    pub change_type: ChangeType,
+    pub metadata: FileEntrySnapshot,
+}
+
 /// Sent to the Tauri frontend after a vault is opened.
 /// Never contains key material.
 #[derive(Debug, Clone, Serialize, Deserialize)]

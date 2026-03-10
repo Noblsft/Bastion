@@ -34,12 +34,19 @@ pub fn run() {
             vault::commands::vault_create_file,
             vault::commands::vault_read_file,
             vault::commands::vault_update_file,
+            vault::commands::vault_update_file_metadata,
             vault::commands::vault_delete_file,
             vault::commands::vault_list_files,
             vault::commands::vault_search_files,
             // Settings
             vault::commands::vault_get_settings,
             vault::commands::vault_set_settings,
+            // History
+            vault::commands::vault_get_history,
+            vault::commands::vault_save_version,
+            vault::commands::vault_revert_file,
+            vault::commands::vault_get_history_config,
+            vault::commands::vault_set_history_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

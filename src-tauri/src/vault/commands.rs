@@ -1,6 +1,6 @@
 use crate::state::AppState;
 use crate::vault::errors::VaultError;
-use crate::vault::types::{Cipher, FileEntry, VaultHandle};
+use crate::vault::types::{Cipher, FileEntry, HistoryConfig, HistoryEntry, VaultHandle};
 
 use serde_json::Value;
 use tauri::State;
@@ -96,10 +96,10 @@ pub fn vault_read_file(state: State<AppState>, id: String) -> Result<Vec<u8>, Va
 
 /// Replaces the content of an existing file and refreshes its metadata.
 ///
-/// Overwrites `objects/<id>.enc` with newly encrypted `data`, then updates
-/// `size`, `integrity_hash`, and `updated_at` in the index. The search index
-/// is also refreshed: extracted text is updated for supported MIME types, or
-/// removed if the type is no longer indexable.
+/// Before overwriting, a history snapshot of the current state is created
+/// automatically based on the vault's tracking mode (`EveryUpdate`, `Interval`,
+/// or `Manual`). In `Manual` mode no snapshot is created — call
+/// `vault_save_version` beforehand if needed.
 ///
 /// Returns the updated `FileEntry` on success.
 ///
@@ -115,10 +115,27 @@ pub fn vault_update_file(
     state.vault.update_file(&id, &data)
 }
 
-/// Permanently removes a file, its index entry, and its search index entry.
+/// Updates only the metadata (name, mime, app_ids) of a file without touching
+/// its content. A history snapshot is created based on the tracking mode.
 ///
-/// Silent no-op if the object file is already absent from disk; the index and
-/// search entries are still cleaned up in that case.
+/// Returns the updated `FileEntry` on success.
+///
+/// # Errors
+/// - `NotOpen` if no vault is currently open.
+/// - `FileNotFound` if `id` does not exist in the index.
+#[tauri::command]
+pub fn vault_update_file_metadata(
+    state: State<AppState>,
+    id: String,
+    name: String,
+    mime: String,
+    app_ids: Vec<String>,
+) -> Result<FileEntry, VaultError> {
+    state.vault.update_file_metadata(&id, name, mime, app_ids)
+}
+
+/// Permanently removes a file, its index entry, search index entry, and all
+/// history snapshots.
 ///
 /// # Errors
 /// - `NotOpen` if no vault is currently open.
@@ -190,4 +207,101 @@ pub fn vault_set_settings(
     value: Value,
 ) -> Result<(), VaultError> {
     state.vault.set_settings(&scope, value)
+}
+
+// ── History ─────────────────────────────────────────────────────────────────
+
+/// Returns the change history for a specific file.
+///
+/// Each `HistoryEntry` includes a version ID, timestamp, the type of change
+/// (content update, metadata update, or revert), and a snapshot of the file's
+/// metadata at that point. Entries are ordered chronologically (oldest first).
+///
+/// A matching content snapshot exists at `snapshots/<file_id>/<version_id>.enc`
+/// and can be restored via `vault_revert_file`.
+///
+/// # Errors
+/// - `NotOpen` if no vault is currently open.
+#[tauri::command]
+pub fn vault_get_history(
+    state: State<AppState>,
+    file_id: String,
+) -> Result<Vec<HistoryEntry>, VaultError> {
+    state.vault.get_history(&file_id)
+}
+
+/// Manually creates a snapshot of the file's current state.
+///
+/// Useful when the vault's tracking mode is `Manual` — this command lets the
+/// frontend trigger a save point on demand (e.g. via a "Save version" button).
+/// In `EveryUpdate` or `Interval` modes this still works and adds an extra
+/// snapshot outside the automatic schedule.
+///
+/// Returns the created `HistoryEntry`.
+///
+/// # Errors
+/// - `NotOpen` if no vault is currently open.
+/// - `FileNotFound` if `file_id` does not exist.
+#[tauri::command]
+pub fn vault_save_version(
+    state: State<AppState>,
+    file_id: String,
+) -> Result<HistoryEntry, VaultError> {
+    state.vault.save_version(&file_id)
+}
+
+/// Destructively reverts a file to a previous version.
+///
+/// Replaces the current encrypted object file with the snapshot identified by
+/// `version_id`, updates the index metadata to match the snapshot, and appends
+/// a `Reverted` history entry. The old content is **not** preserved unless a
+/// snapshot was already taken (automatic or manual) before this call.
+///
+/// Returns the updated `FileEntry` reflecting the restored state.
+///
+/// # Errors
+/// - `NotOpen` if no vault is currently open.
+/// - `FileNotFound` if `file_id` does not exist.
+/// - `VersionNotFound` if `version_id` does not correspond to a stored snapshot.
+#[tauri::command]
+pub fn vault_revert_file(
+    state: State<AppState>,
+    file_id: String,
+    version_id: String,
+) -> Result<FileEntry, VaultError> {
+    state.vault.revert_file(&file_id, &version_id)
+}
+
+/// Returns the vault-wide history configuration.
+///
+/// The configuration controls two aspects:
+/// - **Tracking mode**: when snapshots are created (`EveryUpdate`, `Interval`,
+///   or `Manual`).
+/// - **Retention policy**: how many snapshots are kept (`Forever` or
+///   `KeepLast { max }`).
+///
+/// Returns the default configuration if none has been saved yet.
+///
+/// # Errors
+/// - `NotOpen` if no vault is currently open.
+#[tauri::command]
+pub fn vault_get_history_config(state: State<AppState>) -> Result<HistoryConfig, VaultError> {
+    state.vault.get_history_config()
+}
+
+/// Replaces the vault-wide history configuration.
+///
+/// Changes take effect immediately for subsequent file operations. Existing
+/// snapshots are not retroactively pruned — the new retention policy applies
+/// only when the next snapshot is recorded.
+///
+/// # Errors
+/// - `NotOpen` if no vault is currently open.
+/// - `Io` / `Crypto` / `Json` on storage failures.
+#[tauri::command]
+pub fn vault_set_history_config(
+    state: State<AppState>,
+    config: HistoryConfig,
+) -> Result<(), VaultError> {
+    state.vault.set_history_config(config)
 }

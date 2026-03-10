@@ -16,6 +16,7 @@ The vault is the core storage and security layer of the application. It provides
 - [Indexing](#indexing)
 - [Search](#search)
 - [Settings](#settings)
+- [Version History](#version-history)
 - [Lifecycle](#lifecycle)
 - [Module Structure](#module-structure)
 - [Error Handling](#error-handling)
@@ -344,6 +345,93 @@ Each settings file is an encrypted JSON document:
 
 ---
 
+## Version History
+
+The vault tracks changes to every file via encrypted per-file changelogs and content snapshots. This enables the frontend to display a file's edit history and revert to any previous version.
+
+### On-disk layout
+
+```
+vault.noblsft/
+  history/
+    config.enc             ← encrypted: vault-wide HistoryConfig (tracking + retention)
+    <file_id>.enc          ← encrypted: JSON array of HistoryEntry for that file
+  snapshots/
+    <file_id>/
+      <version_id>.enc     ← copy of objects/<file_id>.enc at the time of the snapshot
+      <version_id>.enc
+      ...
+```
+
+### Snapshots are free copies
+
+Content snapshots are **plain file copies** of the already-encrypted object file. No decrypt/re-encrypt cycle is needed — the encrypted bytes are copied as-is from `objects/<file_id>.enc` to `snapshots/<file_id>/<version_id>.enc`. This makes creating a snapshot as fast as a single `fs::copy`.
+
+Restoring a snapshot is the reverse: copy the snapshot file back to `objects/<file_id>.enc`.
+
+### Tracking modes
+
+The vault's tracking mode controls **when** automatic snapshots are created during `update_file` and `update_file_metadata` operations:
+
+| Mode | Behaviour | Default |
+|---|---|---|
+| `EveryUpdate` | Snapshot before every content or metadata update | **Yes** |
+| `Interval { seconds }` | Snapshot only if at least `seconds` have elapsed since the last snapshot for that file | |
+| `Manual` | Never snapshot automatically — the frontend must call `vault_save_version` explicitly | |
+
+The tracking mode is vault-wide and stored in `history/config.enc`. The frontend can change it at any time via `vault_set_history_config`.
+
+### Retention policies
+
+The retention policy controls **how many** snapshots are kept per file:
+
+| Policy | Behaviour | Default |
+|---|---|---|
+| `Forever` | Keep every snapshot indefinitely | **Yes** |
+| `KeepLast { max }` | After creating a new snapshot, delete the oldest ones so that at most `max` remain | |
+
+Retention is enforced immediately after each `record_change` call. When switching from `Forever` to `KeepLast`, existing snapshots are not retroactively pruned — the new policy only applies when the next snapshot is recorded.
+
+### History entries
+
+Each `HistoryEntry` records:
+
+- `version_id` — UUID of this snapshot (also the filename under `snapshots/<file_id>/`)
+- `timestamp` — when the snapshot was taken (UTC)
+- `change_type` — what triggered the snapshot:
+  - `ContentUpdated` — file content was replaced
+  - `MetadataUpdated` — only metadata (name, mime, app_ids) changed
+  - `Reverted { to_version }` — file was reverted to a previous version
+- `metadata` — a `FileEntrySnapshot` capturing the file's mutable fields (name, mime, app_ids, size, integrity_hash, compression) **before** the change was applied
+
+### Revert flow
+
+Reverting is destructive — the current file state is overwritten:
+
+```
+vault_revert_file(file_id, version_id)
+  1. Copy snapshots/<file_id>/<version_id>.enc → objects/<file_id>.enc
+  2. Decrypt the restored object to read its actual content
+  3. Recompute size + integrity_hash from the decrypted bytes
+  4. Update the index entry with the snapshot's metadata + recomputed fields
+  5. Record a new HistoryEntry with change_type = Reverted { to_version }
+  6. Return the updated FileEntry
+```
+
+If the caller wants to preserve the current state before reverting, they should call `vault_save_version` first.
+
+### Frontend commands
+
+| Command | Purpose |
+|---|---|
+| `vault_get_history(file_id)` | List all history entries for a file |
+| `vault_save_version(file_id)` | Manually create a snapshot of the current state |
+| `vault_revert_file(file_id, version_id)` | Restore a file to a previous version |
+| `vault_get_history_config()` | Read the current tracking mode and retention policy |
+| `vault_set_history_config(config)` | Change the tracking mode and/or retention policy |
+
+---
+
 ## Lifecycle
 
 ### Creating a vault
@@ -392,13 +480,15 @@ Close is also called automatically from the Tauri window event handler on `Close
 ```
 vault/
   mod.rs            — re-exports all submodules
-  types.rs          — Cipher, Compression, Manifest, FileEntry, VaultHandle, MasterKey, OpenedVault
+  types.rs          — Cipher, Compression, Manifest, FileEntry, VaultHandle, MasterKey, OpenedVault,
+                       TrackingMode, RetentionPolicy, HistoryConfig, ChangeType, FileEntrySnapshot, HistoryEntry
   errors.rs         — VaultError enum + serde::Serialize impl for Tauri commands
   crypto.rs         — encrypt, decrypt, derive_key, generate_salt
   compression.rs    — algorithm_for, compress, decompress
   index.rs          — IndexStore: load/save encrypted file metadata
   search.rs         — SearchStore: load/save/query encrypted text index; extract_text
   settings.rs       — SettingsStore: load/save encrypted global and per-app settings
+  history.rs        — HistoryStore: config, per-file changelogs, content snapshots, retention
   vault_service.rs  — VaultService: coordinates all submodules; holds Mutex<OpenedVault>
   commands.rs       — #[tauri::command] fns; the only public API surface for the frontend
 ```
@@ -412,7 +502,8 @@ commands.rs
             ├── compression.rs
             ├── index.rs      ──→ crypto.rs
             ├── search.rs     ──→ crypto.rs
-            └── settings.rs   ──→ crypto.rs
+            ├── settings.rs   ──→ crypto.rs
+            └── history.rs    ──→ crypto.rs
 ```
 
 `types.rs` and `errors.rs` are imported by all layers. `crypto.rs` is a leaf — it imports nothing from within the vault module.
@@ -453,6 +544,7 @@ This enforces at compile time that key material is only accessed through the loc
 | `FileNotFound(String)` | Object `.enc` file or index entry does not exist |
 | `InvalidPath(String)` | Vault directory missing or already exists |
 | `InvalidFormat(String)` | `manifest.json` is malformed |
+| `VersionNotFound(String)` | History snapshot does not exist for the given version ID |
 
 `VaultError` implements `serde::Serialize` so it can be returned directly from `#[tauri::command]` functions without any `.map_err(|e| e.to_string())` boilerplate. The frontend receives the error as a plain string.
 

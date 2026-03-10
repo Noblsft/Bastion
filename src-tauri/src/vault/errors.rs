@@ -28,6 +28,9 @@ pub enum VaultError {
 
     #[error("Invalid vault format: {0}")]
     InvalidFormat(String),
+
+    #[error("Version not found: {0}")]
+    VersionNotFound(String),
 }
 
 // Allows VaultError to be returned directly from #[tauri::command] fns.
