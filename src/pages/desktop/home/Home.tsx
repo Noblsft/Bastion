@@ -1,18 +1,12 @@
-import { useState } from 'react';
+import { Workspace } from '@/components';
 
-import { appRegistry } from '@/apps';
+import type { App } from '@/apps/types';
 
-type AppNames = keyof typeof appRegistry;
-
-export default function Home() {
-  const [activeApp] = useState<AppNames>('sigil');
-
-  const app = appRegistry[activeApp];
-
+export default function Home({ app }: { app: App }) {
   return (
     <app.Provider>
-      <div>
-        <h1>Home</h1>
+      <div className='flex-1 overflow-auto bg-background'>
+        <Workspace app={app} />
       </div>
     </app.Provider>
   );

@@ -11,6 +11,7 @@ import { ReactNode, ComponentType } from 'react';
  * ```TypeScript
  * const myApp: App = {
  *   name: 'MyApp',
+ *   Icon: MyIconComponent,
  *   Sidebar: MySidebarComponent,
  *   Workspace: MyWorkspaceComponent,
  *   Provider: MyProviderComponent,
@@ -26,8 +27,15 @@ export interface App {
   name: string;
 
   /**
+   * Optional React component that renders the icon for this application.
+   * This icon is displayed in the modules panel on the left sidebar.
+   * Should be a simple icon component, typically 24x24 or 32x32 pixels.
+   */
+  Icon?: ComponentType<{ className?: string }>;
+
+  /**
    * React component that renders the sidebar/navigation area of the application.
-   * This component is displayed in the left panel of the application interface
+   * This component is displayed in the right panel of the application interface
    * and typically contains navigation links, menus, or quick actions.
    */
   Sidebar: ComponentType;

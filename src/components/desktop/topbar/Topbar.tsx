@@ -10,9 +10,11 @@ import { useServices } from '@/hooks/useServices.tsx';
 
 type TopbarProps = {
   variant: 'start' | 'vault';
+  sidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 };
 
-export function Topbar({ variant }: TopbarProps) {
+export function Topbar({ variant, sidebarOpen, onToggleSidebar }: TopbarProps) {
   const [osType, setOsType] = useState<'macos' | 'windows' | 'linux' | 'unknown'>('unknown');
   const appWindow = getCurrentWindow();
   const navigate = useNavigate();
@@ -171,8 +173,50 @@ export function Topbar({ variant }: TopbarProps) {
       className='h-[48px] w-full flex items-center justify-between select-none border-b bg-background/95 backdrop-blur z-50 relative'
     >
       {/* LEFT SECTION */}
-      <div className='flex items-center h-full min-w-[120px]' data-tauri-drag-region>
+      <div className='flex items-center h-full min-w-[120px] gap-2' data-tauri-drag-region>
         {osType === 'macos' && <MacControls />}
+        {variant === 'vault' && onToggleSidebar && (
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-7 w-7 rounded-md hover:bg-muted transition-colors'
+            onClick={onToggleSidebar}
+            title={sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
+          >
+            <svg
+              className='h-5 w-5'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              {/* Left panel - filled when sidebar is open */}
+              <rect
+                x='3'
+                y='3'
+                width='7'
+                height='18'
+                rx='1'
+                fill={sidebarOpen ? 'currentColor' : 'none'}
+                stroke='currentColor'
+                strokeWidth='2'
+              />
+              {/* Right content area - always outlined */}
+              <rect
+                x='10'
+                y='3'
+                width='11'
+                height='18'
+                rx='1'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2'
+              />
+            </svg>
+          </Button>
+        )}
       </div>
 
       <div
