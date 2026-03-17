@@ -39,6 +39,7 @@ zstd = "0.13"
 
 # Utilities
 uuid = { version = "1", features = ["v4"] }
+tauri-plugin-os = "2"
 
 [profile.dev]
 incremental = true
