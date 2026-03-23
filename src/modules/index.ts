@@ -1,38 +1,41 @@
 import { Sigil } from '@/modules/sigil';
 
 /**
- * Central registry of all available applications in the NoblSft platform.
+ * Central registry of all available modules in the NoblSft platform.
  *
- * This object maps application identifiers (keys) to their App implementations (values).
- * Each app must implement the {@link App} interface to be included in the registry.
+ * This object maps module identifiers (keys) to their Module implementations (values).
+ * Each module must implement the {@link Module} interface to be included in the registry.
  *
  * The registry is used throughout the platform for:
- * - Application routing and navigation
- * - Dynamic app loading and instantiation
- * - App discovery and enumeration
- * - Type-safe app references
+ * - Module routing and navigation
+ * - Dynamic module loading and instantiation
+ * - Module discovery and enumeration
+ * - Type-safe module references
  *
  * @example
  * ```TypeScript
- * // Access an app from the registry
- * const sigilApp = appRegistry.sigil;
+ * // Access a module from the registry
+ * const sigilModule = moduleRegistry.sigil;
  *
  * // Iterate through all registered modules
- * Object.entries(appRegistry).forEach(([id, app]) => {
- *   console.log(`App: ${app.name} (${id})`);
+ * Object.entries(moduleRegistry).forEach(([id, module]) => {
+ *   console.log(`Module: ${module.name} (${id})`);
  * });
  *
- * // Get all app IDs
- * const appIds = Object.keys(appRegistry);
+ * // Get all module IDs
+ * const moduleIds = Object.keys(moduleRegistry);
  * ```
  *
  * @remarks
  * - Keys should be lowercase identifiers (e.g., 'sigil', 'vault')
- * - Values must conform to the {@link App} interface
- * - When adding a new app, import it and add an entry to this registry
+ * - Values must conform to the {@link Module} interface
+ * - When adding a new module, import it and add an entry to this registry
  *
- * @see {@link App} - The interface that all modules must implement
+ * @see {@link Module} - The interface that all modules must implement
  */
-export const appRegistry = {
+export const moduleRegistry = {
   sigil: Sigil,
 };
+
+/** Union of all registered module IDs. */
+export type ModuleNames = keyof typeof moduleRegistry;

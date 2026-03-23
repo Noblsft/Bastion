@@ -1,36 +1,38 @@
 import './App.css';
-import { useState } from 'react';
 import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 
 import { Topbar, GlobalSidebar } from '@/components';
-import { appRegistry } from '@/modules';
+import { moduleRegistry } from '@/modules';
 import { Start, Home } from '@/pages';
-
-type AppNames = keyof typeof appRegistry;
+import { useAppStore } from '@/store/appStore';
 
 function MainLayout() {
   const location = useLocation();
   const isVaultMode = location.pathname.includes('/home');
-  const [activeApp, setActiveApp] = useState<AppNames>('sigil');
-  const [sidebarRightOpen, setSidebarRightOpen] = useState(true);
 
-  const app = appRegistry[activeApp];
+  const activeModule = useAppStore((s) => s.activeModule);
+  const setActiveModule = useAppStore((s) => s.setActiveModule);
+  const sidebarRightOpen = useAppStore((s) => s.sidebarRightOpen);
+  const toggleSidebarRight = useAppStore((s) => s.toggleSidebarRight);
+
+  const module = moduleRegistry[activeModule];
 
   return (
+    // TODO: Move this to start page and make it a separate layout for vault mode only
     <main className='flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground antialiased'>
       <Topbar
         variant={isVaultMode ? 'vault' : 'start'}
         sidebarOpen={isVaultMode ? sidebarRightOpen : undefined}
-        onToggleSidebar={isVaultMode ? () => setSidebarRightOpen((prev) => !prev) : undefined}
+        onToggleSidebar={isVaultMode ? toggleSidebarRight : undefined}
       />
 
       <div className='flex flex-1 overflow-hidden relative w-full'>
         {/* Global Sidebar - visible in vault mode only */}
         {isVaultMode && (
           <GlobalSidebar
-            activeApp={activeApp}
-            onSelectApp={(appId) => setActiveApp(appId as AppNames)}
-            app={app}
+            activeModule={activeModule}
+            onSelectModule={(moduleId) => setActiveModule(moduleId as typeof activeModule)}
+            module={module}
             sidebarRightOpen={sidebarRightOpen}
           />
         )}
@@ -39,7 +41,7 @@ function MainLayout() {
         <div className='flex flex-1 flex-col items-center justify-center overflow-hidden relative w-full'>
           <Routes>
             <Route path='/' element={<Start />} />
-            <Route path='/home' element={<Home app={app} />} />
+            <Route path='/home' element={<Home module={module} />} />
           </Routes>
         </div>
       </div>

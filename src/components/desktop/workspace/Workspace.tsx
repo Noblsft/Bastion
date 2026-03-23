@@ -1,12 +1,12 @@
-import type { App } from '@/modules/types';
+import type { Module } from '@/modules/types';
 
-export function Workspace({ app }: { app: App }) {
+export function Workspace({ module }: { module: Module }) {
   return (
     // <Box className='workspace' bg='bg.emphasized' p={1}>
-    //   <app.Workspace />
+    //   <module.Workspace />
     // </Box>
     <div>
-      <app.Workspace />
+      <module.Workspace />
     </div>
   );
 }

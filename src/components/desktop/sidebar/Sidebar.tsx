@@ -1,6 +1,6 @@
-import type { App } from '@/modules/types';
+import type { Module } from '@/modules/types';
 
-export function Sidebar({ app }: { app: App }) {
+export function Sidebar({ app }: { app: Module }) {
   return (
     // <Box p={1}>
     //   <app.Sidebar />
