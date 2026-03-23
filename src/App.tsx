@@ -51,6 +51,7 @@ function MainLayout() {
 
 function App() {
   return (
+    // FIXME: Lack of rounded corners on app window
     <HashRouter>
       <MainLayout />
     </HashRouter>
