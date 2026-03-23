@@ -1,5 +1,5 @@
 {
-  "name": "noblsft",
+  "name": "bastion",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:dev": "tauri dev",
     "test": "jest",
     "test:ci": "jest --ci",
     "precommit": "pnpm run lint:fix && pnpm run format && pnpm run lint:rust && pnpm run format:rust",
