@@ -1,5 +1,5 @@
-import { appRegistry } from '@/apps';
 import { Button } from '@/components/ui/button';
+import { appRegistry } from '@/modules';
 
 type ModulesPanelProps = {
   activeApp: string;

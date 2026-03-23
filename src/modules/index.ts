@@ -1,4 +1,4 @@
-import { Sigil } from '@/apps/sigil';
+import { Sigil } from '@/modules/sigil';
 
 /**
  * Central registry of all available applications in the NoblSft platform.
@@ -17,7 +17,7 @@ import { Sigil } from '@/apps/sigil';
  * // Access an app from the registry
  * const sigilApp = appRegistry.sigil;
  *
- * // Iterate through all registered apps
+ * // Iterate through all registered modules
  * Object.entries(appRegistry).forEach(([id, app]) => {
  *   console.log(`App: ${app.name} (${id})`);
  * });
@@ -31,7 +31,7 @@ import { Sigil } from '@/apps/sigil';
  * - Values must conform to the {@link App} interface
  * - When adding a new app, import it and add an entry to this registry
  *
- * @see {@link App} - The interface that all apps must implement
+ * @see {@link App} - The interface that all modules must implement
  */
 export const appRegistry = {
   sigil: Sigil,

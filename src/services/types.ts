@@ -32,7 +32,7 @@ export type FileEntry = {
   name: string;
   /** MIME type (e.g. `"text/markdown"`). Controls compression and search indexing. */
   mime: string;
-  /** IDs of apps that reference this file. A file can be shared across multiple apps. */
+  /** IDs of modules that reference this file. A file can be shared across multiple modules. */
   app_ids: string[];
   /** Original plaintext byte size, before compression. */
   size: number;

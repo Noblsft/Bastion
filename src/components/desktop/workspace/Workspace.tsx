@@ -1,4 +1,4 @@
-import type { App } from '@/apps/types';
+import type { App } from '@/modules/types';
 
 export function Workspace({ app }: { app: App }) {
   return (

@@ -1,4 +1,4 @@
-import { App } from '@/apps/types';
+import { App } from '@/modules/types';
 
 import { Icon } from './desktop/Icon.tsx';
 import { Sidebar } from './desktop/Sidebar.tsx';

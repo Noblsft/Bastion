@@ -1,6 +1,6 @@
 import { Workspace } from '@/components';
 
-import type { App } from '@/apps/types';
+import type { App } from '@/modules/types';
 
 export default function Home({ app }: { app: App }) {
   return (

@@ -2,8 +2,8 @@ import './App.css';
 import { useState } from 'react';
 import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 
-import { appRegistry } from '@/apps';
 import { Topbar, GlobalSidebar } from '@/components';
+import { appRegistry } from '@/modules';
 import { Start, Home } from '@/pages';
 
 type AppNames = keyof typeof appRegistry;

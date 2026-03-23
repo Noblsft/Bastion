@@ -2,7 +2,7 @@ import { ModuleSidebar } from './ModuleSidebar';
 import { ModulesPanel } from './ModulesPanel';
 import { VaultPanel } from './VaultPanel';
 
-import type { App } from '@/apps/types';
+import type { App } from '@/modules/types';
 
 type GlobalSidebarProps = {
   activeApp: string;
