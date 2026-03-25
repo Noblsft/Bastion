@@ -33,7 +33,7 @@ if (platforms.length > 0) {
 }
 
 // Create app directory
-const appsDir = path.join(__dirname, '..', 'src', 'apps');
+const appsDir = path.join(__dirname, '..', 'src', 'modules');
 const appDir = path.join(appsDir, appName);
 
 if (fs.existsSync(appDir)) {

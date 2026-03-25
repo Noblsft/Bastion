@@ -1,14 +1,14 @@
-import { App } from '@/apps/types';
+import { Module } from '@/modules/types';
 
 import { Icon } from './desktop/Icon.tsx';
 import { Sidebar } from './desktop/Sidebar.tsx';
 import { Workspace } from './desktop/Workspace.tsx';
-import { Provider } from './shared/Provider.tsx';
+import { useSigilStore } from './shared/store.ts';
 
-export const Sigil: App = {
+export const Sigil: Module = {
   name: 'Sigil',
   Icon,
   Sidebar,
   Workspace,
-  Provider,
+  useStore: useSigilStore,
 };

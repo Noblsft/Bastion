@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useServices } from '@/hooks/useServices.tsx';
+import { useAppStore } from '@/store/appStore';
 
 import type { Cipher } from '@/services/types';
 
@@ -19,6 +20,7 @@ const CIPHERS: { value: Cipher; label: string }[] = [
 export default function Start() {
   const { vaultService } = useServices();
   const navigate = useNavigate();
+  const setVault = useAppStore((s) => s.setVault);
 
   const [step, setStep] = useState<Step>({ kind: 'idle' });
   const [passphrase, setPassphrase] = useState('');
@@ -58,11 +60,11 @@ export default function Start() {
     setLoading(true);
     setError(null);
     try {
-      if (step.kind === 'create') {
-        await vaultService.createVault(step.path, passphrase, cipher);
-      } else {
-        await vaultService.openVault(step.path, passphrase);
-      }
+      const vault =
+        step.kind === 'create'
+          ? await vaultService.createVault(step.path, passphrase, cipher)
+          : await vaultService.openVault(step.path, passphrase);
+      setVault(vault);
       navigate('/home');
     } catch (e) {
       setError(typeof e === 'string' ? e : 'An unexpected error occurred.');

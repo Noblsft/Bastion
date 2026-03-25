@@ -1,13 +1,13 @@
-import type { App } from '@/apps/types';
+import type { Module } from '@/modules/types';
 
 type ModuleSidebarProps = {
-  app: App;
+  module: Module;
 };
 
-export function ModuleSidebar({ app }: ModuleSidebarProps) {
+export function ModuleSidebar({ module }: ModuleSidebarProps) {
   return (
     <div className='flex-1 overflow-y-auto'>
-      <app.Sidebar />
+      <module.Sidebar />
     </div>
   );
 }
