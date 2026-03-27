@@ -25,6 +25,9 @@ Every piece of user data — notes, files, metadata, search indexes — is encry
 - ✓ Scoped settings (global + per-app) — existing
 - ✓ Module system with registry pattern — existing
 - ✓ Desktop shell (topbar, sidebar, workspace layout) — existing
+- ✓ Notes module registered with Icon, Sidebar, Workspace — Validated in Phase 1
+- ✓ React Error Boundary wrapping Notes workspace — Validated in Phase 1
+- ✓ useNotesStore (Zustand) for Notes UI state — Validated in Phase 1
 - ✓ Native file/save dialogs via Tauri plugins — existing
 - ✓ Dark/light theme support — existing
 
@@ -68,7 +71,7 @@ Key technical considerations from codebase analysis:
 - Index currently does O(n) scans — may need optimization as note count grows
 - Search index loaded entirely into memory — acceptable for notes but worth monitoring
 - CSP is currently null — should be addressed for security hardening
-- No React error boundaries — needed before adding complex editor components
+- Notes module registered with Error Boundary — Phase 1 complete
 
 ## Constraints
 
@@ -109,4 +112,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-_Last updated: 2026-03-27 after initialization_
+_Last updated: 2026-03-27 after Phase 1 completion_
