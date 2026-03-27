@@ -1,3 +1,4 @@
+import { Notes } from '@/modules/notes';
 import { Sigil } from '@/modules/sigil';
 
 /**
@@ -34,6 +35,7 @@ import { Sigil } from '@/modules/sigil';
  * @see {@link Module} - The interface that all modules must implement
  */
 export const moduleRegistry = {
+  notes: Notes,
   sigil: Sigil,
 };
 
